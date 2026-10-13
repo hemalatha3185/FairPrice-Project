@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FairPrice – Used Electronics Price Estimator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root{--ink:#0f172a;--sub:#475569;--brand:#4f46e5;--brand2:#4338ca;--bg:#f8fafc;--card:#ffffff;--border:#e2e8f0}
+  body{background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  html{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px}
+  .btn-p{background:var(--brand);color:#fff;border-radius:10px;font-weight:600;transition:.15s}
+  .btn-p:hover{background:var(--brand2)}
+  .btn-s{background:#fff;color:var(--brand);border:1px solid var(--brand);border-radius:10px;font-weight:600}
+  .btn-s:hover{background:#eef2ff}
+  input,select{border:1px solid var(--border);border-radius:8px;padding:.55rem .7rem;width:100%;background:#fff}
+  input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
+  .fade{animation:fade .3s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react,typescript">
+const {useState,useEffect} = React;
+
+// ---------- mock prediction service (predictionService.ts equivalent) ----------
+function estimatePrice(d){
+  const price = Number(d.originalPrice)||0;
+  const age = Math.max(0, new Date().getFullYear()-Number(d.purchaseYear));
+  const depBase = Math.min(0.85, age*0.14);
+  const condMap = {like_new:0.95, excellent:0.85, good:0.72, fair:0.55, poor:0.35};
+  const condFactor = condMap[d.condition]||0.6;
+  const battFactor = 0.85 + (Number(d.batteryHealth)/100)*0.15;
+  const repairMap = {none:1, minor:0.95, major:0.85};
+  const warrantyMap = {active:1.05, expired:1, none:0.97};
+  const screenMap = {no_damage:1, minor:0.95, major:0.85, cracked:0.65};
+  let mid = price*(1-depBase)*condFactor*battFactor*(repairMap[d.repairHistory]||1)*(warrantyMap[d.warranty]||1)*(screenMap[d.screenCondition]||1);
+  mid = Math.max(500, Math.round(mid/100)*100);
+  const low = Math.round(mid*0.92/100)*100, high = Math.round(mid*1.08/100)*100;
+  return {estimated_price:mid, minimum_price:low, maximum_price:high,
+    factors:[
+      {label:"Device Age", value:age+" yr"+(age!==1?"s":""), note:"Older devices generally have lower resale value."},
+      {label:"Condition", value:d.condition.replace("_"," "), note:"Physical condition strongly affects resale value."},
+      {label:"Battery Health", value:d.batteryHealth+"%", note:"Higher battery health can support a stronger resale value."},
+      {label:"Warranty", value:d.warranty, note:"Remaining warranty can positively affect resale value."}
+    ],
+    breakdown:[
+      {label:"Age depreciation", pct:Math.round(depBase*100)},
+      {label:"Condition impact", pct:Math.round((1-condFactor)*100)},
+      {label:"Battery impact", pct:Math.round((1-battFactor)*100)},
+      {label:"Other factors", pct:5}
+    ]};
+}
+
+const CATS=["Smartphone","Laptop","Tablet","Smartwatch","Camera","Gaming Console","TV","Headphones"];
+const CONDITIONS=[
+  {v:"like_new",l:"Like New",d:"Minimal or no visible signs of use."},
+  {v:"excellent",l:"Excellent",d:"Very minor signs of use."},
+  {v:"good",l:"Good",d:"Normal signs of usage with no major damage."},
+  {v:"fair",l:"Fair",d:"Visible wear or minor defects."},
+  {v:"poor",l:"Poor",d:"Significant wear or functional/physical issues."}
+];
+
+function Logo(){return(<div className="flex items-center gap-2 font-bold text-lg" style={{color:"var(--ink)"}}>
+  <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white" style={{background:"var(--brand)"}}>₹</span>
+  FairPrice</div>);}
+
+function Nav({page,go}){
+  const [open,setOpen]=useState(false);
+  const links=[["home","Home"],["estimate","Estimate Price"],["how","How It Works"],["about","About"],["history","History"]];
+  return(<nav className="sticky top-0 z-20 bg-white border-b" style={{borderColor:"var(--border)"}}>
+    <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <button onClick={()=>go("home")}><Logo/></button>
+      <div className="hidden md:flex items-center gap-6">
+        {links.map(([k,l])=><button key={k} onClick={()=>go(k)} className={"text-sm font-medium "+(page===k?"text-indigo-600":"text-slate-600 hover:text-indigo-600")}>{l}</button>)}
+        <button onClick={()=>go("estimate")} className="btn-p px-4 py-2 text-sm">Estimate Price</button>
+      </div>
+      <button className="md:hidden text-2xl" onClick={()=>setOpen(!open)} aria-label="Menu">☰</button>
+    </div>
+    {open&&<div className="md:hidden border-t px-4 py-3 flex flex-col gap-3">
+      {links.map(([k,l])=><button key={k} className="text-left text-sm font-medium text-slate-700" onClick={()=>{go(k);setOpen(false);}}>{l}</button>)}
+    </div>}
+  </nav>);
+}
+
+function Home({go}){
+  return(<div className="fade">
+    <section className="max-w-6xl mx-auto px-4 pt-16 pb-12 text-center">
+      <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">Know the Fair Value of Your Used Electronics.</h1>
+      <p className="mt-4 max-w-2xl mx-auto" style={{color:"var(--sub)"}}>Get a data-driven estimated resale price for your smartphone, laptop, tablet, camera, smartwatch, or other supported devices.</p>
+      <p className="text-sm italic mt-1" style={{color:"var(--sub)"}}>"Know the fair value before you buy or sell."</p>
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <button onClick={()=>go("estimate")} className="btn-p px-6 py-3">Estimate My Device</button>
+        <button onClick={()=>go("how")} className="btn-s px-6 py-3">How It Works</button>
+      </div>
+    </section>
+
+    <section className="max-w-6xl mx-auto px-4 py-8">
+      <h2 className="text-xl font-bold mb-4">Supported Categories</h2>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {CATS.map(c=><div key={c} className="card p-4 text-center hover:shadow-sm transition">
+          <div className="text-2xl mb-1">📱</div><div className="text-sm font-medium">{c}</div></div>)}
+      </div>
+    </section>
+
+    <section className="max-w-6xl mx-auto px-4 py-8">
+      <h2 className="text-xl font-bold mb-4">Why FairPrice?</h2>
+      <div className="grid md:grid-cols-4 gap-3">
+        {[["Data-Driven Estimates","Use device details and historical pricing data to generate an estimated value."],
+          ["Fair Price Range","Shows a range instead of pretending there is one exact resale price."],
+          ["Detailed Factors","Explains which device characteristics influence the estimate."],
+          ["Cloud-Based","Designed as a cloud-based application for accessible, scalable estimation."]]
+          .map(([t,d])=><div key={t} className="card p-4"><div className="font-semibold mb-1">{t}</div><div className="text-sm" style={{color:"var(--sub)"}}>{d}</div></div>)}
+      </div>
+    </section>
+
+    <section className="max-w-6xl mx-auto px-4 py-8">
+      <h2 className="text-xl font-bold mb-4">How It Works</h2>
+      <div className="grid md:grid-cols-4 gap-3">
+        {["Enter Device Details","Analyze Device Condition","Estimate Fair Price","Review Your Result"].map((s,i)=>
+        <div key={s} className="card p-4"><div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold mb-2" style={{background:"var(--brand)"}}>{i+1}</div><div className="text-sm font-medium">{s}</div></div>)}
+      </div>
+    </section>
+
+    <section className="max-w-6xl mx-auto px-4 py-8">
+      <h2 className="text-xl font-bold mb-4">Example Result</h2>
+      <div className="card p-5 max-w-md">
+        <div className="font-semibold">Example Smartphone</div>
+        <div className="text-2xl font-extrabold mt-2" style={{color:"var(--brand)"}}>₹38,000 – ₹42,000</div>
+        <div className="text-sm mt-2" style={{color:"var(--sub)"}}>Condition: Good · Battery Health: 87% · Age: 2 Years</div>
+        <div className="text-xs mt-2 italic" style={{color:"var(--sub)"}}>Example estimate for demonstration purposes.</div>
+      </div>
+    </section>
+
+    <section className="max-w-6xl mx-auto px-4 py-14 text-center card mt-4">
+      <h2 className="text-2xl font-bold">Ready to find your device's fair value?</h2>
+      <button onClick={()=>go("estimate")} className="btn-p px-6 py-3 mt-4">Start Price Estimation</button>
+    </section>
+  </div>);
+}
+
+function Field({label,children,error}){
+  return(<label className="block mb-3">
+    <span className="text-sm font-medium block mb-1">{label}</span>
+    {children}
+    {error&&<span className="text-xs text-red-600 block mt-1">{error}</span>}
+  </label>);
+}
+
+function Estimator({go,setResult,addHistory}){
+  const [f,setF]=useState({category:"Smartphone",brand:"",model:"",purchaseYear:"2023",originalPrice:"",condition:"good",batteryHealth:80,repairHistory:"none",warranty:"none",screenCondition:"no_damage",usage:"moderate",accessories:[]});
+  const [errs,setErrs]=useState({});
+  const [loading,setLoading]=useState(false);
+  const set=(k,v)=>setF({...f,[k]:v});
+  const toggleAcc=(a)=>set("accessories", f.accessories.includes(a)?f.accessories.filter(x=>x!==a):[...f.accessories,a]);
+
+  function validate(){
+    const e={};
+    if(!f.brand.trim())e.brand="Brand is required.";
+    if(!f.model.trim())e.model="Model cannot be empty.";
+    if(Number(f.purchaseYear)>new Date().getFullYear())e.purchaseYear="Purchase year cannot be in the future.";
+    if(!f.originalPrice||Number(f.originalPrice)<=0)e.originalPrice="Original price must be greater than 0.";
+    if(f.batteryHealth<0||f.batteryHealth>100)e.batteryHealth="Battery health must be between 0 and 100.";
+    setErrs(e);
+    return Object.keys(e).length===0;
+  }
+
+  function submit(){
+    if(!validate())return;
+    setLoading(true);
+    setTimeout(()=>{
+      const r=estimatePrice(f);
+      const record={...f, ...r, date:new Date().toISOString(), id:Date.now()};
+      setResult(record);
+      addHistory(record);
+      setLoading(false);
+      go("result");
+    },900);
+  }
+
+  if(loading)return(<div className="max-w-md mx-auto px-4 py-24 text-center fade">
+    <div className="animate-spin w-10 h-10 border-4 rounded-full mx-auto mb-4" style={{borderColor:"var(--border)",borderTopColor:"var(--brand)"}}></div>
+    <div className="font-medium">Analyzing your device…</div>
+  </div>);
+
+  return(<div className="max-w-3xl mx-auto px-4 py-10 fade">
+    <h1 className="text-2xl font-bold">Estimate Your Device's Fair Price</h1>
+    <p className="text-sm mb-6" style={{color:"var(--sub)"}}>Enter accurate device information to receive an estimated resale price range.</p>
+
+    <div className="card p-5 mb-4">
+      <h2 className="font-semibold mb-3">Device Information</h2>
+      <div className="grid md:grid-cols-2 gap-x-4">
+        <Field label="Device Category"><select value={f.category} onChange={e=>set("category",e.target.value)}>{CATS.map(c=><option key={c}>{c}</option>)}</select></Field>
+        <Field label="Brand" error={errs.brand}><input value={f.brand} onChange={e=>set("brand",e.target.value)} placeholder="e.g. Apple, Samsung"/></Field>
+        <Field label="Model" error={errs.model}><input value={f.model} onChange={e=>set("model",e.target.value)} placeholder="e.g. iPhone 14"/></Field>
+        <Field label="Purchase Year" error={errs.purchaseYear}><select value={f.purchaseYear} onChange={e=>set("purchaseYear",e.target.value)}>{Array.from({length:10},(_,i)=>new Date().getFullYear()-i).map(y=><option key={y}>{y}</option>)}</select></Field>
+        <Field label="Original Price (₹)" error={errs.originalPrice}><input type="number" value={f.originalPrice} onChange={e=>set("originalPrice",e.target.value)} placeholder="70000"/></Field>
+      </div>
+    </div>
+
+    <div className="card p-5 mb-4">
+      <h2 className="font-semibold mb-3">Condition</h2>
+      <div className="grid sm:grid-cols-2 md:grid-cols-5 gap-2">
+        {CONDITIONS.map(c=><button key={c.v} onClick={()=>set("condition",c.v)} className={"card p-3 text-left "+(f.condition===c.v?"ring-2 ring-indigo-600":"")}>
+          <div className="font-medium text-sm">{c.l}</div><div className="text-xs" style={{color:"var(--sub)"}}>{c.d}</div></button>)}
+      </div>
+    </div>
+
+    <div className="card p-5 mb-4">
+      <h2 className="font-semibold mb-3">Additional Details</h2>
+      <Field label={"Battery Health: "+f.batteryHealth+"%"}>
+        <input type="range" min="0" max="100" value={f.batteryHealth} onChange={e=>set("batteryHealth",Number(e.target.value))}/>
+      </Field>
+      <div className="grid md:grid-cols-2 gap-x-4">
+        <Field label="Repair History"><select value={f.repairHistory} onChange={e=>set("repairHistory",e.target.value)}>
+          <option value="none">Never repaired</option><option value="minor">Minor repair</option><option value="major">Major repair</option></select></Field>
+        <Field label="Warranty"><select value={f.warranty} onChange={e=>set("warranty",e.target.value)}>
+          <option value="active">Active warranty</option><option value="expired">Expired warranty</option><option value="none">No warranty</option></select></Field>
+        <Field label="Screen Condition"><select value={f.screenCondition} onChange={e=>set("screenCondition",e.target.value)}>
+          <option value="no_damage">No damage</option><option value="minor">Minor scratches</option><option value="major">Major scratches</option><option value="cracked">Cracked</option></select></Field>
+        <Field label="Usage Level"><select value={f.usage} onChange={e=>set("usage",e.target.value)}>
+          <option value="light">Light</option><option value="moderate">Moderate</option><option value="heavy">Heavy</option></select></Field>
+      </div>
+      <Field label="Accessories">
+        <div className="flex flex-wrap gap-3">
+          {["Original Box","Charger","Cable","Original Accessories"].map(a=>
+            <label key={a} className="text-sm flex items-center gap-1"><input type="checkbox" className="w-auto" checked={f.accessories.includes(a)} onChange={()=>toggleAcc(a)}/>{a}</label>)}
+        </div>
+      </Field>
+    </div>
+
+    <button onClick={submit} className="btn-p w-full py-3 text-base">Estimate Fair Price</button>
+  </div>);
+}
+
+function RangeBar({low,mid,high}){
+  const pos = ((mid-low)/((high-low)||1))*100;
+  return(<div className="mt-3">
+    <div className="h-3 rounded-full bg-slate-100 relative overflow-hidden">
+      <div className="absolute inset-y-0 left-0 rounded-full" style={{width:"100%",background:"linear-gradient(90deg,#c7d2fe,#4f46e5)"}}></div>
+      <div className="absolute top-1/2 w-2 h-2 bg-white border-2 rounded-full" style={{left:pos+"%",borderColor:"var(--brand)",transform:"translate(-50%,-50%)"}}></div>
+    </div>
+    <div className="flex justify-between text-xs mt-1" style={{color:"var(--sub)"}}>
+      <span>Low ₹{low.toLocaleString("en-IN")}</span><span>Est ₹{mid.toLocaleString("en-IN")}</span><span>High ₹{high.toLocaleString("en-IN")}</span>
+    </div>
+  </div>);
+}
+
+function Result({r,go}){
+  if(!r)return(<div className="max-w-md mx-auto px-4 py-20 text-center"><p style={{color:"var(--sub)"}}>No estimate yet.</p><button className="btn-p px-5 py-2 mt-4" onClick={()=>go("estimate")}>Estimate a Device</button></div>);
+  const share=()=>{
+    const text=`${r.brand} ${r.model}: Estimated Fair Price ₹${r.minimum_price}–₹${r.maximum_price}`;
+    if(navigator.share)navigator.share({title:"FairPrice Estimate",text});
+    else {navigator.clipboard.writeText(text);alert("Summary copied to clipboard.");}
+  };
+  const download=()=>{
+    const w=window.open("","_blank");
+    w.document.write(`<pre>FairPrice Estimate\n${r.brand} ${r.model}\nRange: ₹${r.minimum_price} - ₹${r.maximum_price}\nMidpoint: ₹${r.estimated_price}\nCondition: ${r.condition}\nBattery: ${r.batteryHealth}%</pre>`);
+    w.print();
+  };
+  return(<div className="max-w-3xl mx-auto px-4 py-10 fade">
+    <h1 className="text-2xl font-bold mb-1">Your FairPrice Estimate</h1>
+    <p className="text-sm mb-6" style={{color:"var(--sub)"}}>{r.brand} {r.model} — {r.category} · {r.batteryHealth}% Battery · {r.condition.replace("_"," ")} condition</p>
+
+    <div className="card p-6 mb-4">
+      <div className="text-sm font-medium" style={{color:"var(--sub)"}}>Estimated Fair Price</div>
+      <div className="text-3xl font-extrabold mt-1" style={{color:"var(--brand)"}}>₹{r.minimum_price.toLocaleString("en-IN")} – ₹{r.maximum_price.toLocaleString("en-IN")}</div>
+      <div className="text-sm mt-1">Estimated midpoint: ₹{r.estimated_price.toLocaleString("en-IN")}</div>
+      <div className="text-xs mt-1 inline-block px-2 py-0.5 rounded bg-slate-100">Demo confidence indicator: Moderate</div>
+      <RangeBar low={r.minimum_price} mid={r.estimated_price} high={r.maximum_price}/>
+    </div>
+
+    <div className="card p-5 mb-4">
+      <h2 className="font-semibold mb-3">What Influenced Your Estimate?</h2>
+      <div className="grid sm:grid-cols-2 gap-3">
+        {r.factors.map(f=><div key={f.label} className="border rounded-lg p-3" style={{borderColor:"var(--border)"}}>
+          <div className="text-xs font-semibold" style={{color:"var(--sub)"}}>{f.label}</div>
+          <div className="font-medium">{f.value}</div>
+          <div className="text-xs mt-1" style={{color:"var(--sub)"}}>{f.note}</div></div>)}
+      </div>
+    </div>
+
+    <div className="card p-5 mb-4">
+      <h2 className="font-semibold mb-1">Illustrative factor breakdown</h2>
+      <p className="text-xs mb-3" style={{color:"var(--sub)"}}>Not generated by an actual ML model in this demo.</p>
+      {r.breakdown.map(b=><div key={b.label} className="mb-2">
+        <div className="flex justify-between text-xs mb-0.5"><span>{b.label}</span><span>{b.pct}%</span></div>
+        <div className="h-2 bg-slate-100 rounded-full"><div className="h-2 rounded-full" style={{width:b.pct+"%",background:"var(--brand)"}}></div></div></div>)}
+    </div>
+
+    <div className="flex flex-wrap gap-3">
+      <button className="btn-s px-4 py-2" onClick={()=>alert("Estimate saved to History.")}>Save Estimate</button>
+      <button className="btn-s px-4 py-2" onClick={()=>go("estimate")}>Estimate Another Device</button>
+      <button className="btn-s px-4 py-2" onClick={download}>Download Report</button>
+      <button className="btn-s px-4 py-2" onClick={share}>Share Estimate</button>
+    </div>
+  </div>);
+}
+
+function History({hist,del,go}){
+  return(<div className="max-w-3xl mx-auto px-4 py-10 fade">
+    <h1 className="text-2xl font-bold mb-6">Estimate History</h1>
+    {hist.length===0?<div className="card p-8 text-center" style={{color:"var(--sub)"}}>No saved estimates yet. Estimate your first device to see it here.
+      <div><button className="btn-p px-5 py-2 mt-4" onClick={()=>go("estimate")}>Estimate a Device</button></div></div>:
+    <div className="space-y-3">
+      {hist.map(h=><div key={h.id} className="card p-4 flex justify-between items-center">
+        <div>
+          <div className="font-medium">{h.brand} {h.model}</div>
+          <div className="text-sm" style={{color:"var(--sub)"}}>₹{h.minimum_price.toLocaleString("en-IN")} – ₹{h.maximum_price.toLocaleString("en-IN")} · {h.condition.replace("_"," ")} · {new Date(h.date).toLocaleDateString()}</div>
+        </div>
+        <button onClick={()=>del(h.id)} className="text-sm text-red-600">Delete</button>
+      </div>)}
+    </div>}
+  </div>);
+}
+
+function How({go}){
+  const steps=[
+    ["Enter Device Details","Choose your device category, brand, model, purchase year and original price."],
+    ["Analyze Device Condition","Select condition, battery health, repair history, warranty, screen condition and usage level."],
+    ["Estimate Fair Price","Submit the form and FairPrice analyzes the details to generate an estimate."],
+    ["Review Your Result","See your estimated price range, the factors that influenced it, and save or share the result."]
+  ];
+  return(<div className="max-w-3xl mx-auto px-4 py-10 fade">
+    <h1 className="text-2xl font-bold mb-2">How It Works</h1>
+    <p className="text-sm mb-6" style={{color:"var(--sub)"}}>Here's how you'll use FairPrice, and the architecture behind it.</p>
+
+    <h2 className="font-semibold mb-3">Using FairPrice</h2>
+    <div className="grid sm:grid-cols-2 gap-3 mb-8">
+      {steps.map((s,i)=><div key={s[0]} className="card p-4">
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold mb-2" style={{background:"var(--brand)"}}>{i+1}</div>
+        <div className="font-medium text-sm">{s[0]}</div>
+        <div className="text-xs mt-1" style={{color:"var(--sub)"}}>{s[1]}</div>
+      </div>)}
+    </div>
+    {go&&<button onClick={()=>go("estimate")} className="btn-p px-5 py-2">Estimate My Device</button>}
+  </div>);
+}
+
+function About(){
+  return(<div className="max-w-2xl mx-auto px-4 py-10 fade">
+    <h1 className="text-2xl font-bold mb-6">About FairPrice</h1>
+    {[["What is FairPrice?","FairPrice helps users understand the approximate resale value of used electronics."],
+      ["Why was it created?","Used electronics prices depend on multiple factors, making manual price estimation difficult."],
+      ["How does it work?","The future production version will use a Machine Learning model trained on historical device pricing data."]]
+      .map(([t,d])=><div key={t} className="mb-4"><h2 className="font-semibold">{t}</h2><p className="text-sm" style={{color:"var(--sub)"}}>{d}</p></div>)}
+    <div className="card p-4 text-sm mt-6" style={{color:"var(--sub)"}}>FairPrice provides an estimated resale value and should not be treated as a guaranteed market price.</div>
+  </div>);
+}
+
+function App(){
+  const [page,setPage]=useState("home");
+  const [result,setResult]=useState(null);
+  const [hist,setHist]=useState(()=>{try{return JSON.parse(localStorage.getItem("fp_history")||"[]")}catch(e){return []}});
+  useEffect(()=>{try{localStorage.setItem("fp_history",JSON.stringify(hist))}catch(e){}},[hist]);
+  const addHistory=(r)=>setHist([r,...hist].slice(0,50));
+  const del=(id)=>setHist(hist.filter(h=>h.id!==id));
+  const go=(p)=>{setPage(p);window.scrollTo(0,0);};
+  return(<div>
+    <Nav page={page} go={go}/>
+    {page==="home"&&<Home go={go}/>}
+    {page==="estimate"&&<Estimator go={go} setResult={setResult} addHistory={addHistory}/>}
+    {page==="result"&&<Result r={result} go={go}/>}
+    {page==="history"&&<History hist={hist} del={del} go={go}/>}
+    {page==="how"&&<How go={go}/>}
+    {page==="about"&&<About/>}
+    <footer className="text-center text-xs py-8" style={{color:"var(--sub)"}}>FairPrice · Estimated values only, not a guaranteed market price.</footer>
+  </div>);
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

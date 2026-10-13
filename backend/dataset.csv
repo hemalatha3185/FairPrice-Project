@@ -1,0 +1,31 @@
+device_type,brand,model,original_price,age,ram,storage,battery_health,condition,repair_history,warranty,resale_price
+Smartphone,Apple,iPhone 15,70000,1,8,128,92,Excellent,No Repairs,Yes,62480
+Smartphone,Apple,iPhone 14,60000,2,6,128,88,Good,No Repairs,No,39000
+Smartphone,Samsung,Galaxy S23,75000,2,8,256,90,Good,No Repairs,Yes,45000
+Smartphone,Samsung,Galaxy A54,40000,2,8,128,87,Good,Minor Repair,No,24000
+Smartphone,OnePlus,OnePlus 11,56000,2,12,256,89,Good,No Repairs,No,34000
+Smartphone,OnePlus,OnePlus 10,50000,3,8,128,82,Fair,Minor Repair,No,25000
+Smartphone,Xiaomi,Redmi Note 13,25000,1,8,128,94,Excellent,No Repairs,Yes,19000
+Smartphone,Google,Pixel 8,70000,2,8,128,91,Good,No Repairs,No,42000
+Laptop,Dell,Inspiron 15,65000,2,16,512,90,Good,No Repairs,No,35000
+Laptop,Dell,XPS 13,120000,2,16,512,91,Excellent,No Repairs,Yes,78000
+Laptop,HP,Pavilion 14,60000,3,16,512,85,Fair,No Repairs,No,28500
+Laptop,HP,Victus 15,75000,2,16,512,90,Good,No Repairs,Yes,48000
+Laptop,Lenovo,IdeaPad Slim 5,65000,2,16,512,92,Excellent,No Repairs,Yes,43000
+Laptop,Lenovo,Legion 5,110000,3,16,1024,86,Good,Minor Repair,No,62000
+Laptop,ASUS,Vivobook 15,60000,2,16,512,88,Good,No Repairs,No,36000
+Laptop,ASUS,TUF Gaming F15,85000,2,16,512,89,Good,No Repairs,No,52000
+Tablet,Apple,iPad Air,60000,2,8,256,90,Good,No Repairs,Yes,39000
+Tablet,Apple,iPad 10,45000,2,4,64,91,Excellent,No Repairs,No,30000
+Tablet,Samsung,Galaxy Tab S9,70000,2,8,256,88,Good,No Repairs,No,42000
+Tablet,OnePlus,OnePlus Pad,40000,2,8,128,90,Good,No Repairs,No,26000
+Smartwatch,Apple,Watch Series 9,45000,1,2,64,92,Excellent,No Repairs,Yes,31000
+Smartwatch,Samsung,Galaxy Watch 6,35000,2,2,32,87,Good,No Repairs,No,21000
+Camera,Canon,EOS 200D,55000,3,8,128,85,Good,No Repairs,No,32000
+Camera,Nikon,D5600,60000,3,8,128,84,Fair,Minor Repair,No,30000
+Gaming Console,Sony,PS5,55000,2,16,825,90,Good,No Repairs,No,36000
+Gaming Console,Microsoft,Xbox Series X,55000,2,16,1024,91,Excellent,No Repairs,Yes,39000
+TV,Samsung,55 Inch 4K TV,70000,3,0,0,95,Good,No Repairs,No,38000
+TV,LG,55 Inch OLED TV,120000,2,0,0,96,Excellent,No Repairs,Yes,78000
+Headphones,Sony,WH-1000XM5,35000,2,0,0,90,Good,No Repairs,No,21000
+Headphones,Bose,QuietComfort 45,30000,2,0,0,88,Good,Minor Repair,No,17000
